@@ -1,0 +1,127 @@
+Reproducible Research Week 4
+============================
+
+This project evaluate population health and economic impact by disaster events.
+===============================================================================
+
+Introduction
+
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+This project involves exploring the U.S. National Oceanic and Atmospheric Administration’s (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+=====================================================================================
+
+1. Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+
+Data Processing First,we read the data, and pick the relevent columns
+===============================================================================
+
+```{r}
+library(dplyr)
+storm<-read.csv(bzfile("repdata%2Fdata%2FStormData.csv.bz2"))
+names(storm)
+```
+
+```{r}
+s<-storm[,c(8,23:24)]
+t<-storm[,c(8,25:28)]
+rm(storm)
+head(s)
+```
+
+Next, we sum up fatalities and injuries totals to assess the harm that different events caused with respect to population health. We take the top 15 harmful events.
+
+Results
+=======================================================================================
+```{r}
+s1<-aggregate(cbind(FATALITIES,INJURIES) ~ EVTYPE, data = s, sum, na.rm=TRUE)
+rm(s)
+s1<-arrange(s1, desc(FATALITIES+INJURIES))
+s1<-s1[1:15,]
+s1
+```
+
+```{r}
+n <- s1$EVTYPE
+s2 <- as.matrix(t(s1[,-1]))
+colnames(s2) <- n
+par(las=2,mar=c(6,4,1,1))
+barplot(s2, col=c("dark blue","red"),main="Disaster Casualties",cex.names  = 0.6,cex.axis = 0.6)
+legend("topright",c("Fatalities","Injuries"),fill=c("dark blue","red"),bty = "n")
+```
+The Barplot ranks top 15 disaster events that causes most population health harms
+=================================================================================
+
+2. Across the United States, which types of events have the greatest economic consequences?
+
+Data Processing We check the values for PROPDMGEXP, CROPDMGEXP.
+==============================================================================
+
+```{r}
+table(t$PROPDMGEXP)
+```
+
+```{r}
+table(t$CROPDMGEXP)
+```
+
+Assign NA values with level “O” Assign numeric valus to the multiplier, H<-100,K<-1000, M<-1e6, B<- 1e9
+=======================================================================================
+
+```{r}
+t$propFactor<-factor(t$PROPDMGEXP,levels=c("H","K","M","B","h","m","O"))
+t$propFactor[is.na(t$propFactor)] <- "O"
+table(t$propFactor)
+```
+
+```{r}
+t$cropFactor<-factor(t$CROPDMGEXP,levels=c("K","M","B","k","m","O"))
+t$cropFactor[is.na(t$cropFactor)] <- "O"
+table(t$cropFactor)
+```
+
+
+```{r}
+t<- mutate(t,PROP= 0, CROP=0)
+
+t$PROP[t$propFactor=="K"]<-1000
+t$PROP[t$propFactor=="H"|t$propFactor=="h"]<-100
+t$PROP[t$propFactor=="M"|t$propFactor=="m"]<-1e6
+t$PROP[t$propFactor=="B"]<-1e9
+t$PROP[t$propFactor=="O"]<-1
+
+t$CROP[t$cropFactor=="K"|t$cropFactor=="k"]<-1000
+t$CROP[t$cropFactor=="M"|t$cropFactor=="m"]<-1e6
+t$CROP[t$cropFactor=="B"]<-1e9
+t$CROP[t$cropFactor=="O"]<-1
+```
+
+Multiply PROPDMG, CROPDMG with the multipliers. Sum the total damage group by different events.
+==============================================================================
+
+Results
+========
+```{r}
+t<- mutate(t,PROPdmgVal= PROPDMG*PROP/1e6, CROPdmgVal=CROPDMG*CROP/1e6)
+#t2<-aggregate(cbind(PROPdmgVal,CROPdmgVal) ~ EVTYPE, data = t, sum, na.rm=TRUE)
+t2 <- t %>%
+     group_by(EVTYPE) %>%
+     summarize(PROPdmgVal=sum(PROPdmgVal,na.rm=TRUE),CROPdmgVal=sum(CROPdmgVal,na.rm=TRUE))
+t2<-arrange(t2,desc(PROPdmgVal+CROPdmgVal))
+t2<-t2[1:15,]
+t2
+```
+
+```{r}
+rm(t)
+n <- t2$EVTYPE
+t3 <- as.matrix(t(t2[,-1]))
+colnames(t3) <- n
+par(las=2,mar=c(6,4,1,1))
+barplot(t3, col=c("blue","dark red"),main="Disaster Economic Impact",cex.names  = 0.6,cex.axis = 0.6)
+legend("topright",c("Property Damage Million $","Crop Damage Million $"),fill=c("blue","dark red"),bty = "n")
+```
+
+The Barplot ranks top 15 disaster events that causes the most economic impact (M dollars)
+================================================================================
